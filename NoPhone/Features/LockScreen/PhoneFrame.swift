@@ -59,7 +59,6 @@ struct PhoneFrame<Content: View>: View {
 /// row, and the two corner buttons.
 struct LockScreenContent: View {
     let snapshot: LockScreenSnapshot
-    var wallpaper: WallpaperPreset
 
     var body: some View {
         VStack(spacing: 0) {
@@ -216,7 +215,7 @@ enum WallpaperPreset: String, CaseIterable, Identifiable {
         VStack(spacing: Space.lg) {
             ForEach(WallpaperPreset.allCases) { preset in
                 PhoneFrame(wallpaper: preset) {
-                    LockScreenContent(snapshot: .placeholder, wallpaper: preset)
+                    LockScreenContent(snapshot: .placeholder)
                 }
             }
         }

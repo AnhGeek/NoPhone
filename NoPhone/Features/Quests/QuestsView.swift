@@ -128,7 +128,7 @@ struct QuestsView: View {
                 QuestCard(quest: quest,
                           userTier: state.profile.tier,
                           payout: state.effectiveReward(for: quest),
-                          onClaim: { state.claim(quest) },
+                          onClaim: { _ = state.claim(quest) },
                           onUnlock: { showPaywall = true })
             }
 

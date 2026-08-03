@@ -78,7 +78,7 @@ struct DialsWidget: View {
     var body: some View {
         HStack(spacing: 8) {
             ZStack {
-                Circle().stroke(.primary.opacity(0.22), lineWidth: 6)
+                Circle().stroke(Color.primary.opacity(0.22), lineWidth: 6)
                 Circle()
                     .trim(from: 0, to: snapshot.totalFraction)
                     .stroke(vibrant ? AnyShapeStyle(AppTint.mint.gradient) : AnyShapeStyle(Color.primary),
@@ -98,7 +98,7 @@ struct DialsWidget: View {
                 HStack(spacing: 5) {
                     ForEach(snapshot.items.prefix(5)) { item in
                         ZStack {
-                            Circle().stroke(.primary.opacity(0.22), lineWidth: 3)
+                            Circle().stroke(Color.primary.opacity(0.22), lineWidth: 3)
                             Circle()
                                 .trim(from: 0, to: item.fraction)
                                 .stroke(vibrant ? AnyShapeStyle(item.tint.base) : AnyShapeStyle(Color.primary),
@@ -146,7 +146,7 @@ struct BlocksWidget: View {
                             RoundedRectangle(cornerRadius: 1.5, style: .continuous)
                                 .fill(lit
                                       ? (vibrant ? AnyShapeStyle(item.tint.base) : AnyShapeStyle(Color.primary))
-                                      : AnyShapeStyle(Color.primary.opacity(0.2)))
+                                      : AnyShapeStyle(ColorColor.primary.opacity(0.2)))
                                 .frame(height: 5)
                         }
                     }
@@ -206,7 +206,7 @@ struct LockScreenCircularView: View {
 
     var body: some View {
         ZStack {
-            Circle().stroke(.primary.opacity(0.22), lineWidth: 7)
+            Circle().stroke(Color.primary.opacity(0.22), lineWidth: 7)
             Circle()
                 .trim(from: 0, to: snapshot.totalFraction)
                 .stroke(vibrant ? AnyShapeStyle(AppTint.mint.gradient) : AnyShapeStyle(Color.primary),
@@ -249,7 +249,7 @@ struct WidgetBar: View {
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
-                Capsule().fill(.primary.opacity(0.2))
+                Capsule().fill(Color.primary.opacity(0.2))
                 Capsule()
                     .fill(vibrant ? AnyShapeStyle(tint.gradient) : AnyShapeStyle(Color.primary))
                     .frame(width: max(fraction > 0 ? 6 : 0, geo.size.width * min(1, max(0, fraction))))

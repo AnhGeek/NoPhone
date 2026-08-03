@@ -12,8 +12,6 @@ struct LockScreenStudio: View {
     @State private var wallpaper: WallpaperPreset = .sunrise
 
     var body: some View {
-        @Bindable var state = state
-
         ScrollView {
             VStack(spacing: Space.lg) {
                 header
@@ -50,7 +48,7 @@ struct LockScreenStudio: View {
 
     private var phone: some View {
         PhoneFrame(wallpaper: wallpaper) {
-            LockScreenContent(snapshot: state.lockScreenSnapshot, wallpaper: wallpaper)
+            LockScreenContent(snapshot: state.lockScreenSnapshot)
         }
         .frame(maxWidth: .infinity)
     }

@@ -80,8 +80,12 @@ final class AppState {
     }
 
     /// Minutes still on the table today — the headline on the quests screen.
+    /// Uses the *effective* payout so a Champion sees the number they'd
+    /// actually receive, not the base figure.
     var claimableMinutes: Int {
-        claimableQuests.reduce(0) { $0 + $1.rewardMinutes * ($1.maxPerWindow - $1.completionsInWindow) }
+        claimableQuests.reduce(0) {
+            $0 + effectiveReward(for: $1) * ($1.maxPerWindow - $1.completionsInWindow)
+        }
     }
 
     // MARK: - Mutations
@@ -120,7 +124,7 @@ final class AppState {
             subtitle: targetName.map { "Added to \($0)" } ?? "Shared across your apps",
             symbol: quest.symbol,
             tint: quest.tint,
-            boosted: profile.tier == .premium && quests[index].tier == .free
+            boosted: earned > quest.rewardMinutes
         )
         return true
     }

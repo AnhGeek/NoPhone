@@ -41,16 +41,7 @@ struct StickerSurface: ViewModifier {
 }
 
 extension View {
-    /// Sticker surface with a solid color fill.
-    func sticker(_ color: Color,
-                 radius: CGFloat = Radius.md,
-                 stroke: CGFloat = Stroke.medium,
-                 shadow: StickerShadow = .card) -> some View {
-        modifier(StickerSurface(fill: AnyShapeStyle(color),
-                                radius: radius, stroke: stroke, shadow: shadow))
-    }
-
-    /// Sticker surface with a gradient (or any shape style) fill.
+    /// Sticker surface with any fill — a flat `Color`, a gradient, a material.
     func sticker<S: ShapeStyle>(_ style: S,
                                 radius: CGFloat = Radius.md,
                                 stroke: CGFloat = Stroke.medium,

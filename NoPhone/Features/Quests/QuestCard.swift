@@ -137,7 +137,10 @@ struct QuestCard: View {
                         tint: quest.tint, size: .small, fullWidth: true) {
                 justClaimed = true
                 onClaim()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { justClaimed = false }
+                Task {
+                    try? await Task.sleep(for: .seconds(0.4))
+                    justClaimed = false
+                }
             }
         }
     }
