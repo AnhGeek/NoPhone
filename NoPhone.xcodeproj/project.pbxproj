@@ -30,7 +30,7 @@
 		AA0000000000000000004001 /* NoPhone.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NoPhone.entitlements; sourceTree = "<group>"; };
 		AA0000000000000000004002 /* NoPhoneWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NoPhoneWidgets.entitlements; sourceTree = "<group>"; };
 		AA0000000000000000004003 /* NoPhoneWidgets-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "NoPhoneWidgets-Info.plist"; sourceTree = "<group>"; };
-		AA0000000000000000004004 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; name = README.md; path = ../README.md; sourceTree = "<group>"; };
+		AA0000000000000000004004 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
