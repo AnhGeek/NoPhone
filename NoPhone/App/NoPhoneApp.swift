@@ -56,7 +56,14 @@ struct NoPhoneApp: App {
         }
         state.foldMonitorUsage()
 
-        guard state.hasTrackedApps else { return }
+        // No roster means nothing to measure *and* nothing that should stay
+        // blocked — shields outlive the roster, so leaving them alone here
+        // stranded people behind a shield for an app they had removed.
+        guard state.hasTrackedApps else {
+            screenTime.stopMonitoring()
+            publishSnapshot()
+            return
+        }
         screenTime.startMonitoring(apps: state.apps)
         screenTime.applyShields(for: state.apps)
         publishSnapshot()

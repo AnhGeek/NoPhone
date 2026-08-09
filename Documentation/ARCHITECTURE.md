@@ -22,15 +22,18 @@ app running.**
                      │                                  │
         ┌────────────▼───────────────┐                  │
         │  App Group UserDefaults    │                  │
-        │  group.site.lya3hc.nophone │                  │
-        │  key: lockScreenSnapshot   │                  │
-        │  one JSON blob             │                  │
-        └────────────┬───────────────┘                  │
-                     │  SharedStore.read()  ◀───────────┘
+        │  key: lockScreenSnapshot   │  ◀── style + fallback
+        │  key: roster  (app writes) │  ◀── live numbers
+        │  key: usage   (mon writes) │        │
+        └────────────┬───────────────┘        │  WidgetCenter.reload…()
+                     │                        │  (monitor, pinned apps only)
+                     │  LockScreenSnapshot.live(style:) ?? SharedStore.read()
 ┌────────────────────▼──────── Widget process ─────────────────┐
 │  BudgetProvider ──▶ BudgetEntry ──▶ LockScreenWidgetViews     │
 │                                     (the SAME renderers)      │
 └───────────────────────────────────────────────────────────────┘
+
+The widget derives its own numbers, so it keeps counting with the app killed.
 ```
 
 ## State
@@ -125,15 +128,33 @@ Design decisions worth keeping:
   broken on a Lock Screen and there is no room there for an error state, so the
   widget always renders something *shaped like* real data.
 - **`LockScreenSnapshot` is a flattened projection**, not the model. Per item:
-  name, symbol, tint, `remainingSeconds`, `fraction`. The widget does one decode
-  and draws; it never computes budget logic.
+  name, symbol, tint, `remainingSeconds`, `fraction`.
 - **Written on backgrounding** (`scenePhase != .active`), which is exactly when
   the Lock Screen is about to be looked at, followed by
   `WidgetCenter.reloadAllTimelines()`.
+- **The cache is the fallback, not the source.** The widget calls
+  `LockScreenSnapshot.live(style:)`, which derives current numbers from the same
+  `roster` + `usage` keys the monitor writes, and only reads the cached blob for
+  the `style` — a preference the app owns that the bridge doesn't carry. If
+  there is no roster to project, it falls back to the cache whole.
+
+  This is the difference between a widget that keeps counting and one that
+  freezes. Reading the cached snapshot alone meant the numbers stopped moving
+  the moment NoPhone was closed: the widget still woke on schedule, and still
+  re-rendered the same blob. The monitor extension records real usage with the
+  app dead, so the widget follows it there.
+- **`live(style:)` reads the day stamp before the usage.** If the monitor missed
+  its midnight wake-up, both the roster's usage and the bridge's belong to a day
+  that has ended; bars refill at midnight, so the honest reading is zero, not
+  yesterday.
 - **The timeline is a safety net, not the mechanism.** One entry now, refresh
-  after 15 minutes. The app pushes reloads when numbers change; a tighter
-  cadence would burn the widget's refresh budget on numbers that only move while
-  the phone is unlocked anyway.
+  after 15 minutes. Both the app *and* the monitor push reloads when a bar
+  moves; a tighter cadence would burn the widget's refresh budget on numbers
+  that only move while the phone is unlocked anyway.
+- **The monitor only reloads for a pinned app.** WidgetKit rations reloads to
+  tens per day. A tick on an unpinned app changes nothing on the Lock Screen, so
+  spending a reload on it buys nothing and can starve the visible apps later in
+  the day.
 
 **If `SharedStore.appGroupID` and the entitlements disagree, the widget silently
 shows placeholder data.** That is the failure mode to check first when a widget

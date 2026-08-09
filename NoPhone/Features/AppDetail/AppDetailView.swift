@@ -1,4 +1,6 @@
 import SwiftUI
+import FamilyControls
+import ManagedSettings
 
 /// One app, in full.
 ///
@@ -38,22 +40,56 @@ struct AppDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                if let app {
-                    Button {
-                        withAnimation(Motion.jelly) { state.togglePin(app.id) }
-                    } label: {
-                        Image(systemName: app.pinnedToLockScreen ? "lock.fill" : "lock.slash")
-                            .font(.system(size: 15, weight: .black))
-                            .foregroundStyle(app.tint.deep)
-                    }
-                    .accessibilityLabel(app.pinnedToLockScreen
-                                        ? "Remove from Lock Screen" : "Show on Lock Screen")
-                }
+                if let app { pinToggle(app) }
             }
         }
         .sheet(isPresented: $showBudgetSheet) {
             if let app { BudgetEditorSheet(app: app) }
         }
+    }
+
+    // MARK: - Lock Screen pin
+
+    /// A `JellyButton` in miniature — same lozenge, outline, and offset shadow —
+    /// but the symbol trails the label here, and the fill carries the state:
+    /// candy when the app is on the widget, plain surface when it isn't.
+    private func pinToggle(_ app: TrackedApp) -> some View {
+        let pinned = app.pinnedToLockScreen
+        return Button {
+            withAnimation(Motion.jelly) { state.togglePin(app.id) }
+        } label: {
+            HStack(spacing: Space.xxs) {
+                Text("Show on the widget").font(Typo.caption.weight(.heavy))
+                Image(systemName: pinned ? "lock.fill" : "lock.slash")
+                    .font(Typo.caption.weight(.black))
+            }
+            .foregroundStyle(pinned ? app.tint.contrastInk : Theme.textPrimary)
+            .padding(.horizontal, Space.sm)
+            .padding(.vertical, Space.xxs + 2)
+            .background(
+                ZStack {
+                    RoundedRectangle(cornerRadius: Radius.sm, style: .continuous)
+                        .fill(pinned ? AnyShapeStyle(app.tint.gradient)
+                                     : AnyShapeStyle(Theme.surface))
+                    Gloss(radius: Radius.sm, intensity: pinned ? 0.5 : 0)
+                }
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: Radius.sm, style: .continuous)
+                    .strokeBorder(Theme.outline, lineWidth: Stroke.medium)
+            )
+            .background(
+                RoundedRectangle(cornerRadius: Radius.sm, style: .continuous)
+                    .fill(Theme.shadowHard)
+                    .offset(y: 4)
+            )
+            // One hit target: the words read as part of the control, so tapping
+            // them must do what tapping the lock does.
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .jellyPress()
+        .accessibilityLabel(pinned ? "Remove from Lock Screen" : "Show on Lock Screen")
     }
 
     // MARK: - Hero
@@ -74,6 +110,8 @@ struct AppDetailView: View {
                 }
             }
             .frame(width: 210, height: 210)
+            .padding(.bottom)
+            .padding(.top)
 
             TimeBudgetBar(fraction: app.remainingFraction,
                           bonusFraction: app.bonusFraction,
@@ -88,6 +126,10 @@ struct AppDetailView: View {
                     Chip(text: "+\(Int(app.bonusSeconds / 60))m earned",
                          symbol: "sparkles", tint: .sunshine, solid: true)
                 }
+            }
+
+            if let target = app.target {
+                TrackingRow(target: target)
             }
 
             if app.overageSeconds > 0 {
@@ -355,6 +397,64 @@ struct BudgetEditorSheet: View {
         .presentationDetents([.height(560)])
         .presentationBackground(.clear)
         .onAppear { minutes = app.budgetSeconds / 60 }
+    }
+}
+
+// MARK: - Tracking row
+
+/// Which real app or category this budget is attached to.
+///
+/// The names in this product are the person's own, so months later "Loopz" may
+/// no longer say what it governs. Apple's `Label` is the only thing that can
+/// answer that — the token stays opaque to us, iOS draws the name and icon
+/// privately. It stays a footnote: the glyph and tint remain the app's identity
+/// everywhere else, because the Lock Screen widget has no `FamilyControls`
+/// entitlement and could never match a real icon.
+///
+/// `Equatable` is load-bearing, as in `BudgetSetupView`. `Label` is
+/// UIKit-backed and detaches when re-rendered; this row sits inside a hero that
+/// redraws on every usage tick, so it must not redraw with it.
+private struct TrackingRow: View, Equatable {
+    let target: TrackedTarget
+
+    static func == (lhs: TrackingRow, rhs: TrackingRow) -> Bool {
+        lhs.target == rhs.target
+    }
+
+    var body: some View {
+        HStack(spacing: Space.xs) {
+            Text("Tracking")
+                .font(Typo.micro)
+                .tracking(0.6)
+                .foregroundStyle(Theme.textTertiary)
+
+            switch target {
+            case .application(let data):
+                if let token = try? JSONDecoder().decode(ApplicationToken.self, from: data) {
+                    Label(token)
+                        .labelStyle(.titleAndIcon)
+                        .font(Typo.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                        .lineLimit(1)
+                }
+            case .category(let data):
+                if let token = try? JSONDecoder().decode(ActivityCategoryToken.self, from: data) {
+                    Label(token)
+                        .labelStyle(.titleAndIcon)
+                        .font(Typo.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                        .lineLimit(1)
+                    Text("· whole category")
+                        .font(Typo.micro)
+                        .foregroundStyle(Theme.textTertiary)
+                }
+            }
+        }
+        .padding(.horizontal, Space.sm)
+        .padding(.vertical, Space.xxs)
+        .background(
+            Capsule().fill(Theme.surfaceSunk)
+        )
     }
 }
 

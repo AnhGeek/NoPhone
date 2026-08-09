@@ -9,6 +9,10 @@ import SwiftUI
 struct HomeView: View {
     @Environment(AppState.self) private var state
     @Binding var selectedAppID: UUID?
+    /// Set by a long press on a tile, answered by a card the shell presents.
+    /// It lives up in `RootView` because the confirm card has to cover the
+    /// floating tab bar, which is a sibling of this whole screen.
+    @Binding var pendingUntrack: TrackedApp?
     var onOpenQuests: () -> Void
 
     @State private var showRolloverHint = false
@@ -131,7 +135,9 @@ struct HomeView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: Space.sm) {
                     ForEach(state.appsByUrgency) { app in
-                        AppMiniTile(app: app) { selectedAppID = app.id }
+                        AppMiniTile(app: app,
+                                    onTap: { selectedAppID = app.id },
+                                    onDelete: { pendingUntrack = app })
                     }
                 }
                 .padding(.vertical, Space.xxs)
@@ -298,6 +304,6 @@ extension Color {
 }
 
 #Preview("Home") {
-    HomeView(selectedAppID: .constant(nil), onOpenQuests: {})
+    HomeView(selectedAppID: .constant(nil), pendingUntrack: .constant(nil), onOpenQuests: {})
         .environment(AppState.preview)
 }

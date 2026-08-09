@@ -133,6 +133,9 @@ struct AppGlyph: View {
 struct AppMiniTile: View {
     let app: TrackedApp
     var onTap: () -> Void = {}
+    /// Long-press affordance. Untracking is destructive and the tile is small,
+    /// so the caller owns the confirmation — this only reports the intent.
+    var onDelete: (() -> Void)?
 
     var body: some View {
         Button(action: onTap) {
@@ -154,6 +157,13 @@ struct AppMiniTile: View {
         }
         .buttonStyle(.plain)
         .jellyPress()
+        // A `contextMenu` here would be system chrome in the middle of a
+        // sticker sheet, so the hold raises this app's own confirm card
+        // instead. Simultaneous so it never steals the tap that opens detail.
+        .simultaneousGesture(
+            LongPressGesture(minimumDuration: 0.45)
+                .onEnded { _ in onDelete?() }
+        )
     }
 }
 

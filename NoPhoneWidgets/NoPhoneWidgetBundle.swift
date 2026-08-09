@@ -21,16 +21,28 @@ struct BudgetProvider: TimelineProvider {
         BudgetEntry(date: .now, snapshot: .placeholder)
     }
 
+    /// Fresh numbers, derived here rather than handed over.
+    ///
+    /// Reading only the app's cached snapshot meant the widget froze the moment
+    /// NoPhone was closed — it kept waking on schedule and kept re-rendering
+    /// the same stale blob. The monitor extension writes real usage to the App
+    /// Group with the app dead, so the widget projects that instead, and falls
+    /// back to the cache only when there is no roster to project.
+    private func currentSnapshot() -> LockScreenSnapshot {
+        let cached = SharedStore.read()
+        return LockScreenSnapshot.live(style: cached.style) ?? cached
+    }
+
     func getSnapshot(in context: Context, completion: @escaping (BudgetEntry) -> Void) {
-        completion(BudgetEntry(date: .now, snapshot: SharedStore.read()))
+        completion(BudgetEntry(date: .now, snapshot: currentSnapshot()))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<BudgetEntry>) -> Void) {
-        // The app pushes a reload whenever usage changes, so the timeline is
-        // just a safety net: one entry now, refreshed in fifteen minutes. A
-        // tighter cadence would burn the widget's refresh budget for numbers
-        // that only move while the phone is unlocked anyway.
-        let entry = BudgetEntry(date: .now, snapshot: SharedStore.read())
+        // Both the app and the monitor push a reload when a bar actually moves,
+        // so the timeline is a safety net: one entry now, refreshed in fifteen
+        // minutes. A tighter cadence would burn the widget's refresh budget for
+        // numbers that only move while the phone is unlocked anyway.
+        let entry = BudgetEntry(date: .now, snapshot: currentSnapshot())
         let next = Calendar.current.date(byAdding: .minute, value: 15, to: .now) ?? .now
         completion(Timeline(entries: [entry], policy: .after(next)))
     }

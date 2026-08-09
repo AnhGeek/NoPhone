@@ -13,6 +13,8 @@ struct RootView: View {
     @State private var tab: Tab = .home
     @State private var selectedAppID: UUID?
     @State private var showPicker = false
+    /// The app a long press on the home strip is asking to untrack.
+    @State private var pendingUntrack: TrackedApp?
 
     enum Tab: String, CaseIterable, Identifiable {
         case home, quests, lockScreen, profile
@@ -47,13 +49,30 @@ struct RootView: View {
         }
     }
 
+    /// The tab bar writes through here rather than straight to `tab`.
+    ///
+    /// A pushed `AppDetailView` sits *above* the stack root, so swapping the
+    /// root under it changes nothing on screen — the bar looks dead. Popping
+    /// first makes every tap land on that tab's own screen, and because a
+    /// binding setter runs even when the value is unchanged, re-tapping the
+    /// current tab pops to root too.
+    private var tabSelection: Binding<Tab> {
+        Binding {
+            tab
+        } set: { newTab in
+            selectedAppID = nil
+            tab = newTab
+        }
+    }
+
     var body: some View {
         ZStack(alignment: .bottom) {
             NavigationStack {
                 Group {
                     switch tab {
                     case .home:
-                        HomeView(selectedAppID: $selectedAppID) {
+                        HomeView(selectedAppID: $selectedAppID,
+                                 pendingUntrack: $pendingUntrack) {
                             withAnimation(Motion.jelly) { tab = .quests }
                         }
                     case .quests:     QuestsView()
@@ -66,7 +85,7 @@ struct RootView: View {
                 }
             }
             .tint(Theme.brand)
-            TabBar(selection: $tab)
+            TabBar(selection: tabSelection)
                 .padding(.horizontal, Space.gutter)
                 .padding(.bottom, Space.xs)
         }
@@ -81,6 +100,28 @@ struct RootView: View {
                     .zIndex(5)
             }
         }
+        // Above the tab bar, not inside the stack: untracking is a decision
+        // about the whole app, and the bar must not stay tappable behind it.
+        .overlay {
+            if let app = pendingUntrack {
+                ConfirmOverlay(
+                    title: "Stop tracking \(app.name)?",
+                    message: "Its budget, today's usage, and any earned time go away. The app stops being blocked.",
+                    symbol: "trash.fill",
+                    confirmTitle: "Stop tracking",
+                    cancelTitle: "Keep it"
+                ) {
+                    withAnimation(Motion.jelly) { state.untrack(app.id) }
+                    pendingUntrack = nil
+                } onCancel: {
+                    pendingUntrack = nil
+                }
+                .transition(.opacity)
+                .zIndex(8)
+            }
+        }
+        .animation(Motion.jelly, value: pendingUntrack)
+        .sensoryFeedback(.impact(weight: .medium), trigger: pendingUntrack?.id)
         .overlay {
             if let celebration = state.pendingCelebration {
                 CelebrationOverlay(celebration: celebration) {
@@ -95,7 +136,15 @@ struct RootView: View {
         // otherwise the reward is invisible until the person quits the app.
         // Budget edits move the thresholds too, so both re-register.
         .onChange(of: state.apps) { _, apps in
-            guard !apps.isEmpty else { return }
+            // Emptying the roster is the one case that *must* still run: a
+            // shield lives in ManagedSettings, not in this app's memory, so an
+            // app untracked while spent stays blocked forever if nothing
+            // clears it. Returning early here left people locked out of an app
+            // this app no longer knew about.
+            guard !apps.isEmpty else {
+                screenTime.stopMonitoring()
+                return
+            }
             screenTime.applyShields(for: apps)
             screenTime.startMonitoring(apps: apps)
         }

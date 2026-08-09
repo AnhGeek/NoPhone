@@ -30,7 +30,7 @@ enum DiagLog {
     /// Bumped by hand when a build is handed to a device. Without it, a log
     /// tail cannot distinguish "the code didn't run" from "that build predates
     /// the fix" — a distinction that has already cost a debugging round here.
-    static let buildStamp = "2026-08-09-H (tab bar clearance)"
+    static let buildStamp = "2026-08-09-I (shield trail + empty-roster unshield)"
 
     /// Which process wrote the line — the app and the monitor interleave here.
     enum Source: String { case app = "APP", monitor = "MON" }

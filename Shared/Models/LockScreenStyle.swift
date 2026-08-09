@@ -95,6 +95,66 @@ struct LockScreenSnapshot: Codable, Hashable {
     )
 }
 
+extension LockScreenSnapshot {
+    /// Build the payload from App Group data alone, with no running app.
+    ///
+    /// The cached snapshot is only as fresh as the last time NoPhone was open,
+    /// so a widget that reads it renders frozen bars while the person is
+    /// actually burning time — the thing the Lock Screen exists to show. The
+    /// monitor extension, meanwhile, writes real usage every tick with the app
+    /// killed. So the widget derives its numbers the same way the app does,
+    /// from `roster` + `usage`, and keeps only the *style* from the cache:
+    /// that is a preference the app owns, and nothing in the bridge carries it.
+    ///
+    /// Returns nil when there is no roster to project — the caller falls back
+    /// to the cached snapshot rather than rendering an empty accessory.
+    static func live(style: LockScreenStyle) -> LockScreenSnapshot? {
+        let roster = UsageBridge.readRoster()
+        guard !roster.isEmpty else { return nil }
+
+        // If the monitor never got its midnight wake-up, both the roster's
+        // usage and the bridge's belong to a day that has ended. Bars refill at
+        // midnight, so the honest reading is zero rather than yesterday.
+        let staleDay = UsageBridge.usageDayStart.map {
+            !Calendar.current.isDate($0, inSameDayAs: .now)
+        } ?? true
+        let usage = staleDay ? [:] : UsageBridge.readUsage()
+
+        var apps = roster
+        for index in apps.indices {
+            if staleDay {
+                apps[index].usedSeconds = 0
+                apps[index].bonusSeconds = 0
+            } else {
+                // The monitor's figure is cumulative and absolute; the roster's
+                // is whatever the app last folded in. Highest wins, so neither
+                // a missed fold nor a missed tick walks the number backwards.
+                apps[index].usedSeconds = max(apps[index].usedSeconds,
+                                              usage[apps[index].id] ?? 0)
+            }
+        }
+
+        let pinned = apps
+            .filter(\.pinnedToLockScreen)
+            .sorted { $0.remainingFraction < $1.remainingFraction }
+        let items = pinned.prefix(style.appCapacity).map {
+            Item(id: $0.id, name: $0.name, symbol: $0.symbol, tint: $0.tint,
+                 remainingSeconds: $0.remainingSeconds, fraction: $0.remainingFraction)
+        }
+
+        let totalRemaining = apps.reduce(0) { $0 + $1.remainingSeconds }
+        let totalBudget = apps.reduce(0) { $0 + $1.totalSeconds }
+
+        return LockScreenSnapshot(
+            items: Array(items),
+            totalRemaining: totalRemaining,
+            totalFraction: totalBudget > 0 ? min(1, max(0, totalRemaining / totalBudget)) : 0,
+            style: style,
+            generatedAt: .now
+        )
+    }
+}
+
 extension AppState {
     /// Project current state into the widget payload.
     var lockScreenSnapshot: LockScreenSnapshot {
