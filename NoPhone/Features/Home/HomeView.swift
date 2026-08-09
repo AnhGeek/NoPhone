@@ -85,7 +85,7 @@ struct HomeView: View {
             MascotSpeech(mood: Mascot.Mood(status: state.overallStatus),
                          tint: heroTint,
                          text: heroLine,
-                         size: 78)
+                         size: 50)
 
             HStack(spacing: Space.sm) {
                 StatBubble(value: "\(state.totalOpens)", label: "opens", symbol: "hand.tap.fill", tint: .sky)

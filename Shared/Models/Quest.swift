@@ -64,7 +64,7 @@ struct Quest: Identifiable, Codable, Hashable {
         return Double(completionsInWindow) / Double(maxPerWindow)
     }
 
-    func isClaimable(for tier userTier: MembershipTier) -> Bool {
+    func isClaimable(for userTier: MembershipTier) -> Bool {
         !isExhausted && userTier.canAccess(self.tier)
     }
 }

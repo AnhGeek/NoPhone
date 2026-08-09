@@ -146,7 +146,7 @@ struct BlocksWidget: View {
                             RoundedRectangle(cornerRadius: 1.5, style: .continuous)
                                 .fill(lit
                                       ? (vibrant ? AnyShapeStyle(item.tint.base) : AnyShapeStyle(Color.primary))
-                                      : AnyShapeStyle(ColorColor.primary.opacity(0.2)))
+                                      : AnyShapeStyle(Color.primary.opacity(0.2)))
                                 .frame(height: 5)
                         }
                     }

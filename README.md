@@ -73,6 +73,8 @@ assets — changes expression with your remaining budget: cheerful, chill,
 worried, asleep. A reacting character is friendlier than a red number, and it
 keeps the tone encouraging rather than punitive.
 
+Full reference: [`Documentation/DESIGN_TOKENS.md`](Documentation/DESIGN_TOKENS.md).
+
 ### Token files
 
 | File | Owns |
@@ -106,6 +108,11 @@ Config/             Entitlements and the extension Info.plist
 
 `Shared/` is a file-system-synchronized group with membership in both targets,
 so adding a file there needs no project edit.
+
+Engineering docs live in [`Documentation/`](Documentation/README.md) —
+[architecture](Documentation/ARCHITECTURE.md),
+[structure](Documentation/STRUCTURE.md),
+[design tokens](Documentation/DESIGN_TOKENS.md).
 
 ---
 
