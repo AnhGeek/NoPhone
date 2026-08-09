@@ -1,4 +1,5 @@
 import SwiftUI
+import FamilyControls
 
 /// App shell.
 ///
@@ -8,8 +9,10 @@ import SwiftUI
 /// candy lozenge that slides behind the selected tab.
 struct RootView: View {
     @Environment(AppState.self) private var state
+    @Environment(ScreenTimeService.self) private var screenTime
     @State private var tab: Tab = .home
     @State private var selectedAppID: UUID?
+    @State private var showPicker = false
 
     enum Tab: String, CaseIterable, Identifiable {
         case home, quests, lockScreen, profile
@@ -63,10 +66,20 @@ struct RootView: View {
                 }
             }
             .tint(Theme.brand)
-
             TabBar(selection: $tab)
                 .padding(.horizontal, Space.gutter)
                 .padding(.bottom, Space.xs)
+        }
+        .screenTimeSetup(isPresented: $showPicker)
+        .overlay {
+            // Nothing to show until real apps are picked. Covering the shell
+            // is deliberate: a dashboard of zeroes would read as a bug, and
+            // there is exactly one useful action here.
+            if !state.hasTrackedApps {
+                ScreenTimeGate { showPicker = true }
+                    .transition(.opacity)
+                    .zIndex(5)
+            }
         }
         .overlay {
             if let celebration = state.pendingCelebration {
@@ -78,6 +91,14 @@ struct RootView: View {
             }
         }
         .animation(Motion.jelly, value: state.pendingCelebration)
+        // A quest refill has to lift a shield *now*, not at the next launch —
+        // otherwise the reward is invisible until the person quits the app.
+        // Budget edits move the thresholds too, so both re-register.
+        .onChange(of: state.apps) { _, apps in
+            guard !apps.isEmpty else { return }
+            screenTime.applyShields(for: apps)
+            screenTime.startMonitoring(apps: apps)
+        }
     }
 }
 
@@ -139,5 +160,47 @@ struct TabBar: View {
 }
 
 #Preview("Root") {
-    RootView().environment(AppState())
+    RootView()
+        .environment(AppState.preview)
+        .environment(ScreenTimeService())
+}
+
+// MARK: - Setup presentation
+
+/// Presents Screen Time's picker and, once something is chosen, the setup
+/// screen — as **siblings**, never nested.
+///
+/// `familyActivityPicker` presented from inside a `fullScreenCover` collapses
+/// the outer presentation on iPad, dumping the user back to the gate. Keeping
+/// both at the same level is the fix.
+private struct SetupPresenter: ViewModifier {
+    @Binding var isPresented: Bool
+    @State private var selection = FamilyActivitySelection()
+    @State private var showSetup = false
+
+    func body(content: Content) -> some View {
+        content
+            .familyActivityPicker(isPresented: $isPresented, selection: $selection)
+            .onChange(of: isPresented) { _, open in
+                guard !open else { return }
+                let apps = selection.applicationTokens.count
+                let cats = selection.categoryTokens.count
+                DiagLog.write("host: picker closed apps=\(apps) categories=\(cats)")
+                if apps + cats > 0 { showSetup = true }
+            }
+            .fullScreenCover(isPresented: $showSetup) {
+                BudgetSetupView(selection: selection) {
+                    // Close setup first, then reopen the picker on the next
+                    // runloop — presenting one over the other is the bug.
+                    showSetup = false
+                    DispatchQueue.main.async { isPresented = true }
+                }
+            }
+    }
+}
+
+extension View {
+    func screenTimeSetup(isPresented: Binding<Bool>) -> some View {
+        modifier(SetupPresenter(isPresented: isPresented))
+    }
 }

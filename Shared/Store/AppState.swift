@@ -26,10 +26,18 @@ final class AppState {
 
     // MARK: - Init
 
+    /// Real state starts **empty**. There is no seeded app list: until the
+    /// person picks apps through `FamilyActivityPicker` we have nothing to
+    /// track, and showing invented usage next to real usage would make every
+    /// number in the app untrustworthy.
+    ///
+    /// `quests` still comes from `SampleData` — that is the documented stand-in
+    /// for the admin's backend catalog, not fake *usage*, and there is no
+    /// backend to call yet.
     init(profile: UserProfile = .sample,
-         apps: [TrackedApp] = SampleData.apps,
+         apps: [TrackedApp] = [],
          quests: [Quest] = SampleData.quests,
-         ledger: [RewardGrant] = SampleData.ledger,
+         ledger: [RewardGrant] = [],
          lockScreenStyle: LockScreenStyle = .rainbowStack) {
         self.profile = profile
         self.apps = apps
@@ -38,6 +46,20 @@ final class AppState {
         self.lockScreenStyle = lockScreenStyle
         self.dayStart = Calendar.current.startOfDay(for: .now)
     }
+
+    /// Fixtures for `#Preview` and nothing else.
+    ///
+    /// Previews cannot run DeviceActivity — there is no Screen Time stack in
+    /// the canvas or the Simulator — so components still need a populated
+    /// state to render all four budget statuses at once. Keeping this on an
+    /// explicit factory rather than the default initializer is what stops the
+    /// fixtures from ever reaching a real user.
+    static var preview: AppState {
+        AppState(apps: SampleData.apps, ledger: SampleData.ledger)
+    }
+
+    /// Whether the person has finished picking apps. Drives onboarding.
+    var hasTrackedApps: Bool { !apps.isEmpty }
 
     // MARK: - Aggregates
 
@@ -160,11 +182,54 @@ final class AppState {
         apps[index].bonusSeconds += Double(minutes) * 60
     }
 
-    /// Stand-in for the DeviceActivity callback: record a pickup.
-    func recordUsage(minutes: Double, for appID: UUID, at date: Date = .now) {
-        guard let index = apps.firstIndex(where: { $0.id == appID }) else { return }
-        apps[index].usedSeconds += minutes * 60
-        apps[index].sessions.append(UsageSession(start: date, minutes: minutes))
+    /// Pull real usage in from the monitor extension.
+    ///
+    /// The monitor writes absolute totals, so this assigns rather than adds —
+    /// calling it twice is harmless, which matters because it runs on every
+    /// foreground.
+    ///
+    /// Sessions are *derived*, not observed: DeviceActivity reports cumulative
+    /// minutes at thresholds, never "an app was opened at 10:04". So a growing
+    /// total becomes one appended tick, and the detail timeline honestly shows
+    /// blocks of usage rather than pretending to know pickup boundaries.
+    func foldMonitorUsage(now: Date = .now) {
+        let usage = UsageBridge.readUsage()
+
+        for index in apps.indices {
+            guard let observed = usage[apps[index].id] else { continue }
+            let previous = apps[index].usedSeconds
+            guard observed > previous else { continue }
+
+            apps[index].usedSeconds = observed
+            apps[index].sessions.append(
+                UsageSession(start: now.addingTimeInterval(-(observed - previous)),
+                             minutes: (observed - previous) / 60)
+            )
+        }
+    }
+
+    /// Register an app the person picked. The tint is assigned here and never
+    /// changes: one identity per app for its whole life in the UI is what makes
+    /// the Lock Screen readable without labels.
+    func track(name: String,
+               target: TrackedTarget,
+               category: AppCategory,
+               budgetMinutes: Double) {
+        let used = Set(apps.map(\.tint))
+        let tint = AppTint.allCases.first { !used.contains($0) } ?? .grape
+
+        apps.append(
+            TrackedApp(name: name,
+                       symbol: category.symbol,
+                       tint: tint,
+                       category: category,
+                       budgetMinutes: budgetMinutes,
+                       target: target)
+        )
+    }
+
+    func untrack(_ appID: UUID) {
+        apps.removeAll { $0.id == appID }
     }
 
     func togglePin(_ appID: UUID) {

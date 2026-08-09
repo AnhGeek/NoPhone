@@ -22,7 +22,7 @@ struct LockScreenStudio: View {
                 explainer
             }
             .padding(.horizontal, Space.gutter)
-            .padding(.bottom, 120)
+            .padding(.bottom, Space.tabBarClearance)
         }
         .scrollIndicators(.hidden)
         .playgroundBackground(tints: [.sky, .grape, .bubblegum])
@@ -250,5 +250,5 @@ struct StepRow: View {
 }
 
 #Preview("Lock Screen studio") {
-    LockScreenStudio().environment(AppState())
+    LockScreenStudio().environment(AppState.preview)
 }

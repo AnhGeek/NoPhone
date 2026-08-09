@@ -20,12 +20,12 @@ app running.**
                      ▼
             SharedStore.write(_:)          WidgetCenter.reloadAllTimelines()
                      │                                  │
-        ┌────────────▼─────────────┐                    │
-        │  App Group UserDefaults  │                    │
-        │  group.com.nophone.app   │                    │
-        │  key: lockScreenSnapshot │                    │
-        │  one JSON blob           │                    │
-        └────────────┬─────────────┘                    │
+        ┌────────────▼───────────────┐                  │
+        │  App Group UserDefaults    │                  │
+        │  group.site.lya3hc.nophone │                  │
+        │  key: lockScreenSnapshot   │                  │
+        │  one JSON blob             │                  │
+        └────────────┬───────────────┘                  │
                      │  SharedStore.read()  ◀───────────┘
 ┌────────────────────▼──────── Widget process ─────────────────┐
 │  BudgetProvider ──▶ BudgetEntry ──▶ LockScreenWidgetViews     │
@@ -74,7 +74,8 @@ preconditions:
 | `claim(_:)` | Quest must exist, not be exhausted, and be within the user's tier. Returns `false` rather than silently no-op'ing. |
 | `effectiveReward(for:)` | The *only* place a payout is computed. Base × `MembershipPerks.premiumMultiplier`, premium only. |
 | `applyMinutes(_:to:)` | Targeted quest tops up one app; untargeted spreads evenly — so a reward can't become a lever to overload the app someone is already losing to. `private`. |
-| `recordUsage(minutes:for:)` | The DeviceActivity seam. Appends a session and burns time. |
+| `foldMonitorUsage(now:)` | Pulls real usage from the monitor extension via `UsageBridge`. Assigns absolute totals, so running it twice is harmless. |
+| `track(name:tokenData:category:budgetMinutes:)` | Registers a picked app and assigns its permanent `AppTint`. |
 | `rolloverDay()` | New day: bars refill, bonuses expire, daily quests reset, streak advances or breaks. |
 
 ### The integrity rule, as code
@@ -111,7 +112,7 @@ Deliberately the smallest thing that works: **one JSON blob in App Group
 
 ```swift
 enum SharedStore {
-    static let appGroupID = "group.com.nophone.app"   // must match Config/*.entitlements
+    static let appGroupID = "group.site.lya3hc.nophone"   // must match Config/*.entitlements
     static func write(_ snapshot: LockScreenSnapshot)
     static func read() -> LockScreenSnapshot          // never throws
 }
@@ -174,27 +175,91 @@ what makes the Lock Screen readable at a glance without reading a label.
 
 Full reference: [DESIGN_TOKENS.md](DESIGN_TOKENS.md).
 
-## The two seams
+## Real usage: the Screen Time pipeline
 
-Usage is sample data tuned to exercise every visual state at once — one app
-spent, one critical, one healthy, one topped up. Real integrations land at
-**exactly two places**, by design:
+Usage is measured by Apple's Screen Time frameworks. There is no sample-usage
+path in the running app — `AppState()` starts with **no apps at all** until the
+person picks some.
 
-1. **`AppState.recordUsage(minutes:for:)`** — the stand-in for a
-   `DeviceActivityMonitor` callback. Wiring up `FamilyControls` +
-   `DeviceActivity` means requesting authorization, registering a schedule, and
-   feeding this method. Nothing else in the app changes.
-2. **`SampleData.quests`** — the stand-in for the admin's catalog, delivered by
-   a backend. Replace with a fetch that produces `[Quest]`; the integrity rule
-   survives because `rewardMinutes` stays a `let` on whatever arrives.
+```
+FamilyActivityPicker  ──tokens──▶  AppPickerFlow  ──▶  AppState.track(...)
+                                                            │
+                                              ScreenTimeService.startMonitoring
+                                                            │
+                                                   DeviceActivity thresholds
+                                                            │
+                                            ┌───────────────▼────────────────┐
+                                            │ DeviceActivityMonitorExtension │  separate process
+                                            └───────────────┬────────────────┘
+                                       UsageBridge.setUsage │ ManagedSettings shield
+                                                            ▼
+                              app foreground ──▶ AppState.foldMonitorUsage()
+```
 
-One known wrinkle for seam 1: third-party app icons are only available through
-`FamilyControls`' opaque `Label`, which cannot be restyled. `TrackedApp.symbol`
-uses our own SF Symbol glyph set instead, so the design holds either way.
+### The three frameworks
+
+| Framework | Job |
+|---|---|
+| `FamilyControls` | Authorization, and the picker that yields `ApplicationToken`s. |
+| `DeviceActivity` | Wakes our monitor extension at pre-registered usage thresholds. |
+| `ManagedSettings` | Blocks a spent app; the shield lifts when a quest refills time. |
+
+### Four constraints that shaped the design
+
+1. **Apps are opaque.** A token carries no name, icon, or bundle ID. So the
+   person names each app during picking, and we assign our own glyph and tint —
+   which is what keeps the whole design system applicable to real data. Apple's
+   `Label(token)` appears *only* in the picker, where it is the only way to
+   confirm what was selected.
+2. **Usage arrives in steps, not continuously.** DeviceActivity only calls back
+   at thresholds registered in advance. `UsageBridge.tickMinutes` (5) is
+   therefore the true resolution of every number in the app. Sessions are
+   *derived* from a growing total, not observed — the system never reports a
+   pickup.
+3. **The monitor is a separate process.** It cannot see `AppState`. The two
+   sides share the App Group and each owns disjoint keys: the app writes
+   `roster`, the monitor writes `usage`, neither writes the other's. That rule
+   is what makes the bridge correct without locking.
+4. **`DeviceActivityReport` is a one-way box.** The extension that can read
+   precise historical totals renders SwiftUI in a sandbox and cannot pass data
+   back. Any chart sourced from it must be drawn inside it — which is why live
+   budgets come from monitor thresholds instead.
+
+### Thresholds are a prediction, so re-register often
+
+`startMonitoring` runs whenever the roster changes — apps added or removed, a
+budget edited, quest minutes granted. A threshold set is a guess about where
+callbacks should land, and a refill moves them. Skipping this is the most likely
+way to make budgets silently stop draining.
+
+### Developing without a device
+
+The Simulator has no Screen Time stack, so `SimulatorUsageDriver` stands in for
+Apple's callback — and only for that. It writes to `UsageBridge` exactly as the
+monitor extension does, and the app folds it in through the same
+`foldMonitorUsage()`, so what runs in the Simulator is the real pipeline with
+one end substituted rather than a parallel fake that can drift.
+
+It is wrapped in `#if targetEnvironment(simulator)` and is absent from every
+device build. Its fixture apps carry no `ApplicationToken`, so
+`ScreenTimeService` skips them when registering events and cannot confuse a demo
+app for a real one. Shields are the one thing it cannot reproduce.
+
+## The remaining seam
+
+**`SampleData.quests`** — still the stand-in for the admin's catalog, delivered
+by a backend. Replace with a fetch producing `[Quest]`; the integrity rule
+survives because `rewardMinutes` stays a `let` on whatever arrives.
+
+`SampleData.apps` and `.ledger` are now **preview fixtures only**, reachable
+through `AppState.preview`. Previews and the Simulator have no Screen Time
+stack, so components still need populated state to render all four budget
+statuses. Never wire them to the default initializer.
 
 ## Persistence
 
-Currently none beyond the widget snapshot — `AppState` is in-memory and reseeds
-from `SampleData` each launch. The model is `Codable` end to end, so adding a
+Beyond the widget snapshot, the tracked-app roster persists in the App Group
+(`UsageBridge`), because the monitor extension must read it in a process that
+never runs `AppState`. Everything else is still in-memory per session. The model is `Codable` end to end, so adding a
 JSON file (or SwiftData) is a store-layer change that no view sees. Do it in
 `Store/`, not in a view's `.task`.

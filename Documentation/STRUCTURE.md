@@ -32,7 +32,7 @@ NoPhone/
 │   │   ├── Components/             StickerStyle, TimeBudgetBar, BudgetRing, Controls
 │   │   └── Effects/                BlobBackground, Mascot (Bloop), Confetti
 │   ├── Models/                     TrackedApp, Quest, LockScreenStyle (+ snapshot)
-│   ├── Store/                      AppState, SampleData, Formatters, SharedStore
+│   ├── Store/                      AppState, UsageBridge, SampleData, Formatters, SharedStore
 │   └── Widgets/                    LockScreenWidgetViews — the renderers
 │
 ├── NoPhoneWidgets/             ── Widget extension target ──
@@ -113,7 +113,13 @@ Honest list, for whoever picks this up next:
 3. **No build configuration files.** Settings live in the `.pbxproj`. `.xcconfig`
    files would make bundle IDs and team settings diffable — relevant as soon as
    there is more than one developer or a CI signing identity.
-4. **Sample data is compiled in.** `SampleData` is the stand-in for a backend;
-   see [ARCHITECTURE.md](ARCHITECTURE.md#the-two-seams).
+4. **Sample data is preview-only.** `SampleData.apps`/`.ledger` reach the UI
+   solely through `AppState.preview`; the running app starts empty and fills
+   from Screen Time. `SampleData.quests` remains the backend stand-in. See
+   [ARCHITECTURE.md](ARCHITECTURE.md#real-usage-the-screen-time-pipeline).
+5. **Screen Time code never goes in `Shared/`.** The widget would have to link
+   the frameworks and carry the `family-controls` entitlement for data it never
+   reads. App-side code lives in `NoPhone/ScreenTime/`, monitor code in
+   `NoPhoneMonitor/`, and only plain `Data`/`String` crosses into `Shared/`.
 
 None of these block work today. Items 1 and 3 are the ones worth doing first.

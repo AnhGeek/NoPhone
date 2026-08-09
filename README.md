@@ -128,7 +128,7 @@ open NoPhone.xcodeproj
 Pick the **NoPhone** scheme and run. Before running on a device:
 
 1. Set your team on both targets.
-2. Change the bundle IDs (`com.nophone.app`, `com.nophone.app.widgets`).
+2. Change the bundle IDs (`site.lya3hc.nophone`, `site.lya3hc.nophone.widgets`, `site.lya3hc.nophone.monitor`).
 3. Update the App Group in `Config/*.entitlements` **and**
    `SharedStore.appGroupID` — they must match, or the widget silently falls
    back to placeholder data.
@@ -138,15 +138,27 @@ happens in the canvas without launching the app.
 
 ### Where the data comes from
 
-Usage is currently sample data tuned to exercise every visual state at once —
-one app spent, one critical, one healthy, one topped up. Real tracking swaps in
-at exactly two seams:
+Usage is **real**, measured with Apple's Screen Time frameworks: a
+`FamilyControls` picker supplies app tokens, `DeviceActivity` wakes the
+`NoPhoneMonitor` extension at usage thresholds, and `ManagedSettings` shields an
+app once its budget is spent. The app starts with no tracked apps until the
+person picks some.
 
-- `AppState.recordUsage(minutes:for:)` — the stand-in for a **DeviceActivity**
-  callback. Wiring up `FamilyControls` + `DeviceActivityMonitor` means feeding
-  this method and nothing else.
+Because Screen Time hands back **opaque tokens** — no name, no icon, no bundle
+ID — the person names each app when picking it, and the app assigns its own
+glyph and tint. That is what lets the design system apply to real data.
+
+One stand-in remains:
+
 - `SampleData.quests` — the stand-in for the admin's catalog, delivered by the
   backend.
+
+`SampleData.apps` and `.ledger` are preview fixtures only, reached through
+`AppState.preview`.
+
+> **Screen Time does not work in the Simulator**, and the `family-controls`
+> entitlement must be approved by Apple before App Store distribution. A green
+> build proves compilation; only a physical device proves behaviour.
 
 `SharedStore` already writes a snapshot to the App Group whenever the app
 leaves the foreground, and asks WidgetKit to reload.

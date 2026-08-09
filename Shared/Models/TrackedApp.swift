@@ -8,6 +8,8 @@ import SwiftUI
 /// back today, and `usedSeconds` is what you have spent.
 struct TrackedApp: Identifiable, Codable, Hashable {
     let id: UUID
+    /// Typed by the person when they pick the app. Screen Time never tells us
+    /// an app's real name, so this is the only label that exists.
     var name: String
     /// SF Symbol standing in for the real app icon. Icons for third-party apps
     /// can only be rendered via `FamilyControls`' opaque `Label`, so the
@@ -15,6 +17,11 @@ struct TrackedApp: Identifiable, Codable, Hashable {
     var symbol: String
     var tint: AppTint
     var category: AppCategory
+
+    /// What this budget governs — one app, or one whole category.
+    ///
+    /// `nil` only for preview fixtures, which have no Screen Time token at all.
+    var target: TrackedTarget?
 
     /// Base daily allowance, in seconds. Set by the person (or their admin).
     var budgetSeconds: TimeInterval
@@ -38,12 +45,14 @@ struct TrackedApp: Identifiable, Codable, Hashable {
          bonusMinutes: Double = 0,
          usedMinutes: Double = 0,
          sessions: [UsageSession] = [],
-         pinnedToLockScreen: Bool = true) {
+         pinnedToLockScreen: Bool = true,
+         target: TrackedTarget? = nil) {
         self.id = id
         self.name = name
         self.symbol = symbol
         self.tint = tint
         self.category = category
+        self.target = target
         self.budgetSeconds = budgetMinutes * 60
         self.bonusSeconds = bonusMinutes * 60
         self.usedSeconds = usedMinutes * 60
@@ -87,6 +96,34 @@ struct TrackedApp: Identifiable, Codable, Hashable {
     /// The longest single sitting today — the number that usually surprises
     /// people more than the daily total does.
     var longestSession: TimeInterval { sessions.map(\.duration).max() ?? 0 }
+}
+
+/// What a budget is attached to on the Screen Time side.
+///
+/// Held as encoded `Data` rather than the token types so this model — and the
+/// whole `Shared/` layer with it — never links `ManagedSettings`. The widget
+/// renders names and remaining time only; making it import a Screen Time
+/// framework (and carry the entitlement) to decode a field it never reads
+/// would be pure cost. Only the app and the monitor extension decode these.
+///
+/// Categories exist because iOS **cannot** expand a category into its apps —
+/// that would reveal which apps are installed, the exact boundary opaque
+/// tokens protect. So a category can only ever be budgeted as one unit: one
+/// name, one tint, one bar covering everything inside it.
+enum TrackedTarget: Codable, Hashable {
+    case application(Data)
+    case category(Data)
+
+    var tokenData: Data {
+        switch self {
+        case .application(let d), .category(let d): d
+        }
+    }
+
+    var isCategory: Bool {
+        if case .category = self { return true }
+        return false
+    }
 }
 
 /// Four states, each with its own voice. The copy matters as much as the color:

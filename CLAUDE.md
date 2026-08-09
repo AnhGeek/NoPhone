@@ -50,9 +50,11 @@ NoPhone/            App target
 Shared/             Compiled into BOTH app and widget extension
   DesignSystem/     Tokens, Components, Effects
   Models/           TrackedApp, Quest, LockScreenStyle (+ widget snapshot)
-  Store/            AppState, SampleData, Formatters, SharedStore
+  Store/            AppState, UsageBridge, SampleData, Formatters, SharedStore
   Widgets/          Widget renderers — shared so preview == reality
+NoPhone/ScreenTime/ FamilyControls + DeviceActivity + ManagedSettings (app only)
 NoPhoneWidgets/     Widget extension bundle
+NoPhoneMonitor/     DeviceActivityMonitor extension — the real usage callback
 Config/             Entitlements + extension Info.plist
 ```
 
@@ -86,13 +88,36 @@ the extension cannot see `NoPhone/`.
 
 ## Data seams
 
-Usage is sample data tuned to show every state at once (one spent, one critical,
-one healthy, one topped up). Real integrations land at exactly two places:
+Usage is **real**, measured through Apple's Screen Time frameworks. See
+`Documentation/ARCHITECTURE.md` for the full pipeline. The short version:
 
-- `AppState.recordUsage(minutes:for:)` — stand-in for a **DeviceActivity**
-  callback. Wiring `FamilyControls` + `DeviceActivityMonitor` means feeding this
-  method and nothing else.
+- `FamilyControls` picker → `AppState.track(...)` → `ScreenTimeService`
+  registers DeviceActivity thresholds → `NoPhoneMonitor` extension credits
+  usage through `UsageBridge` and shields spent apps → the app folds it in with
+  `foldMonitorUsage()` on foreground.
+- Tokens are **opaque**: no name, no icon, no bundle ID. The person names each
+  app at pick time and we assign the tint. Apple's `Label(token)` is allowed
+  only inside the picker.
+- Usage resolution is `UsageBridge.tickMinutes` (5), because DeviceActivity only
+  calls back at pre-registered thresholds. Sessions are derived, not observed.
+- Re-run `startMonitoring` on **any** roster change — budgets, bonuses, adds,
+  removes. Thresholds are a prediction and a refill moves them.
+
+Remaining stand-in:
+
 - `SampleData.quests` — stand-in for the admin's backend catalog.
+- `SampleData.apps` / `.ledger` — **preview fixtures only**, via
+  `AppState.preview`. Never on the default initializer; previews and the
+  Simulator have no Screen Time stack.
+
+**Screen Time cannot be verified in the Simulator** — no Screen Time stack, so
+authorization always fails and no threshold ever fires. To develop there, use
+`SimulatorUsageDriver` (`#if targetEnvironment(simulator)`, compiled out of
+device builds): "Load demo apps" on the gate, then "Simulate usage" in Settings.
+It substitutes for **Apple's callback only** — it writes through `UsageBridge`
+and the app folds it in with the same `foldMonitorUsage()`, so the Simulator
+exercises the real pipeline. It cannot reproduce `ManagedSettings` shields;
+verifying an app is actually blocked still needs a device.
 
 `SharedStore` writes the snapshot to the App Group on backgrounding and asks
 WidgetKit to reload.
@@ -104,6 +129,21 @@ WidgetKit to reload.
 - `AppState` is `@Observable`, in-memory, single source of truth for the session.
 - Comments in this codebase explain *why* a constraint exists, not what the line
   does. Match that.
+
+## App icon
+
+`NoPhone/Resources/Assets.xcassets/AppIcon.appiconset/icon-1024.png` is
+**generated, not drawn**: `Tools/MakeAppIcon.swift` renders Bloop with
+CoreGraphics using the same palette values as the UI. Change the palette,
+re-run it — don't hand-edit the PNG.
+
+```bash
+xcrun swift Tools/MakeAppIcon.swift \
+  NoPhone/Resources/Assets.xcassets/AppIcon.appiconset/icon-1024.png
+```
+
+A single 1024×1024 universal entry is deliberate; Xcode derives every other
+size, and App Store validation requires the 120×120 and 152×152 it produces.
 
 ## Agents
 

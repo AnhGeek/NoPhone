@@ -43,7 +43,7 @@ struct QuestsView: View {
                 ledgerSection
             }
             .padding(.horizontal, Space.gutter)
-            .padding(.bottom, 120)
+            .padding(.bottom, Space.tabBarClearance)
         }
         .scrollIndicators(.hidden)
         .playgroundBackground(tints: [.mint, .sunshine, .sky, .bubblegum])
@@ -253,5 +253,5 @@ struct LevelBar: View {
 }
 
 #Preview("Quests") {
-    QuestsView().environment(AppState())
+    QuestsView().environment(AppState.preview)
 }

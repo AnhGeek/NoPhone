@@ -9,7 +9,7 @@ import Foundation
 enum SharedStore {
     /// Must match the App Group capability on both the app and the widget
     /// extension targets.
-    static let appGroupID = "group.com.nophone.app"
+    static let appGroupID = "group.site.lya3hc.nophone"
     private static let key = "lockScreenSnapshot"
 
     private static var defaults: UserDefaults? {

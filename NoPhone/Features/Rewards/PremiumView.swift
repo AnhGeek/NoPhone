@@ -203,5 +203,5 @@ struct PerkRow: View {
 }
 
 #Preview("Premium") {
-    PremiumView().environment(AppState())
+    PremiumView().environment(AppState.preview)
 }

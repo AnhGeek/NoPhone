@@ -187,45 +187,126 @@ struct Arc: Shape {
 }
 
 /// Mascot plus a speech bubble — the greeting block on the home screen.
+///
+/// Comic-panel treatment: chunky ink outline, a hard offset shadow so the
+/// balloon reads as cut paper laid on the page, and a halftone dot field
+/// behind the mascot standing in for a printed panel.
 struct MascotSpeech: View {
     var mood: Mascot.Mood
     var tint: AppTint = .grape
     var text: String?
     var size: CGFloat = 96
 
+    /// Tail width, scaled off the balloon's type so it stays proportional.
+    private let tail: CGFloat = 12
+
     var body: some View {
-        HStack(alignment: .center, spacing: Space.sm) {
+        HStack(alignment: .center, spacing: Space.xs) {
             Mascot(mood: mood, tint: tint, size: size)
+                // Bloop's idle bob and antenna both overrun the nominal frame;
+                // the inset keeps them off the balloon and the card edge.
+                .padding(Space.xxs)
+                .background(
+                    Halftone(dot: 2.2, spacing: 8)
+                        .fill(tint.base.opacity(0.35))
+                        .frame(width: size * 1.05, height: size * 1.05)
+                        .clipShape(Circle())
+                        .offset(x: size * 0.06, y: size * 0.08)
+                )
 
             Text(text ?? mood.line)
-                .font(Typo.callout.weight(.semibold))
+                .font(Typo.callout.weight(.bold))
                 .foregroundStyle(Theme.textPrimary)
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, Space.sm)
-                .padding(.vertical, Space.xs + 2)
+                // The tail eats into the shape's leading edge, so the text
+                // inset has to clear it or the first glyph sits on the point.
+                .padding(.leading, tail + Space.md)
+                .padding(.trailing, Space.md)
+                .padding(.vertical, Space.sm)
                 .background(
-                    SpeechBubble()
-                        .fill(Theme.surface)
-                        .overlay(SpeechBubble().stroke(Theme.outline, lineWidth: Stroke.thin))
+                    ZStack {
+                        // The sticker shadow is its own filled silhouette, not a
+                        // `.shadow` on the stroked shape — blurring a stroke
+                        // offsets both of its edges and prints a second contour
+                        // inside the balloon. Straight down, so the left-pointing
+                        // tail doesn't cast a visible twin beside itself.
+                        SpeechBubble(tail: tail)
+                            .fill(Theme.textTertiary.opacity(0.5))
+                            .offset(y: StickerShadow.card.offset.height)
+
+                        SpeechBubble(tail: tail)
+                            .fill(Theme.surface)
+                            .overlay(
+                                SpeechBubble(tail: tail)
+                                    .stroke(Theme.outline,
+                                            style: .init(lineWidth: Stroke.medium,
+                                                         lineJoin: .round))
+                            )
+                    }
                 )
         }
     }
 }
 
 /// Rounded rect with a little tail pointing left toward the mascot.
+///
+/// The tail is unioned into the body outline (rather than drawn as a separate
+/// triangle) so the ink stroke runs around the whole balloon in one unbroken
+/// comic line, with no seam where the point meets the body.
 struct SpeechBubble: Shape {
-    var tail: CGFloat = 8
+    var tail: CGFloat = 12
 
     func path(in rect: CGRect) -> Path {
         let bodyRect = CGRect(x: rect.minX + tail, y: rect.minY,
                               width: rect.width - tail, height: rect.height)
-        var path = Path(roundedRect: bodyRect, cornerRadius: Radius.sm, style: .continuous)
-        let midY = rect.midY
-        path.move(to: CGPoint(x: rect.minX, y: midY))
-        path.addLine(to: CGPoint(x: rect.minX + tail + 1, y: midY - tail))
-        path.addLine(to: CGPoint(x: rect.minX + tail + 1, y: midY + tail))
+        let r = min(Radius.sm, bodyRect.height / 2)
+        let x0 = bodyRect.minX, x1 = bodyRect.maxX
+        let y0 = bodyRect.minY, y1 = bodyRect.maxY
+        // Tail sits just below centre — a hair off-axis reads hand-inked.
+        let tipY = rect.midY + tail * 0.15
+        let baseTop = min(tipY - tail * 0.55, y1 - r)
+        let baseBottom = min(tipY + tail * 0.85, y1 - r)
+
+        var path = Path()
+        path.move(to: CGPoint(x: x0 + r, y: y0))
+        path.addLine(to: CGPoint(x: x1 - r, y: y0))
+        path.addQuadCurve(to: CGPoint(x: x1, y: y0 + r), control: CGPoint(x: x1, y: y0))
+        path.addLine(to: CGPoint(x: x1, y: y1 - r))
+        path.addQuadCurve(to: CGPoint(x: x1 - r, y: y1), control: CGPoint(x: x1, y: y1))
+        path.addLine(to: CGPoint(x: x0 + r, y: y1))
+        path.addQuadCurve(to: CGPoint(x: x0, y: y1 - r), control: CGPoint(x: x0, y: y1))
+        path.addLine(to: CGPoint(x: x0, y: baseBottom))
+        path.addLine(to: CGPoint(x: rect.minX, y: tipY))
+        path.addLine(to: CGPoint(x: x0, y: baseTop))
+        path.addLine(to: CGPoint(x: x0, y: y0 + r))
+        path.addQuadCurve(to: CGPoint(x: x0 + r, y: y0), control: CGPoint(x: x0, y: y0))
         path.closeSubpath()
+        return path
+    }
+}
+
+/// Printed-comic halftone: a grid of dots used as a cheap "this is inked and
+/// screened" cue behind the mascot.
+struct Halftone: Shape {
+    var dot: CGFloat = 2.2
+    var spacing: CGFloat = 8
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        var y = rect.minY + spacing / 2
+        var row = 0
+        while y < rect.maxY {
+            // Offset every other row so the field reads as a screen, not a grid.
+            var x = rect.minX + spacing / 2 + (row.isMultiple(of: 2) ? 0 : spacing / 2)
+            while x < rect.maxX {
+                path.addEllipse(in: CGRect(x: x - dot / 2, y: y - dot / 2,
+                                           width: dot, height: dot))
+                x += spacing
+            }
+            y += spacing
+            row += 1
+        }
         return path
     }
 }

@@ -154,6 +154,7 @@ ticks: a countdown that reflows its own digits reads as broken.
 | `xl` | 32 |
 | `xxl` | 44 |
 | `gutter` | 20 — standard screen margin |
+| `tabBarClearance` | 120 — bottom inset for scrolling screens **inside the tab shell**. The floating bar overlays content instead of reserving space, so every such screen must clear it by hand, pushed navigation destinations included. Sheets and full-screen covers sit outside the shell and use `xxl` instead. |
 
 ## Corner radii — `Radius`
 Cartoon UI lives on very round corners; these are lozenges, not rectangles.

@@ -25,7 +25,7 @@ struct HomeView: View {
             }
             .padding(.horizontal, Space.gutter)
             .padding(.top, Space.xs)
-            .padding(.bottom, 120)   // clears the floating tab bar
+            .padding(.bottom, Space.tabBarClearance)
         }
         .scrollIndicators(.hidden)
         .playgroundBackground(tints: [state.overallStatus == .spent ? .cherry : .grape,
@@ -81,7 +81,8 @@ struct HomeView: View {
             }
             .frame(width: 230, height: 230)
             .padding(.top, Space.xs)
-
+            .padding(.bottom, Space.xs)
+            
             MascotSpeech(mood: Mascot.Mood(status: state.overallStatus),
                          tint: heroTint,
                          text: heroLine,
@@ -94,7 +95,7 @@ struct HomeView: View {
             }
         }
         .padding(.vertical, Space.md)
-        .padding(.horizontal, Space.sm)
+        .padding(.horizontal, Space.md)
         .cardSurface(radius: Radius.xl, shadow: .lift)
     }
 
@@ -298,5 +299,5 @@ extension Color {
 
 #Preview("Home") {
     HomeView(selectedAppID: .constant(nil), onOpenQuests: {})
-        .environment(AppState())
+        .environment(AppState.preview)
 }

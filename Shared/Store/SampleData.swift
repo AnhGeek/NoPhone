@@ -5,6 +5,16 @@ import Foundation
 /// Tuned to exercise every visual state at once — one app already spent, one
 /// critical, one healthy, one topped up with bonus time — so previews and
 /// screenshots never show an unrealistically tidy day.
+/// Preview fixtures. **Not a runtime data path.**
+///
+/// `apps` and `ledger` reach the UI only through `AppState.preview`: previews
+/// and the Simulator have no Screen Time stack, so components still need
+/// populated state to render all four budget statuses at once. Wiring these to
+/// the default initializer would put invented usage next to real usage and make
+/// every number in the app untrustworthy.
+///
+/// `quests` is different — it remains the documented stand-in for the admin's
+/// backend catalog, and is still used at runtime.
 enum SampleData {
 
     static let apps: [TrackedApp] = {

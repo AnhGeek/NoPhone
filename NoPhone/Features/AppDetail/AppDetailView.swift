@@ -26,7 +26,7 @@ struct AppDetailView: View {
                     actions(app)
                 }
                 .padding(.horizontal, Space.gutter)
-                .padding(.bottom, Space.xxl)
+                .padding(.bottom, Space.tabBarClearance)
             } else {
                 ContentUnavailableView("App not found", systemImage: "questionmark.app.dashed")
                     .padding(.top, 80)
@@ -179,10 +179,9 @@ struct AppDetailView: View {
                 showBudgetSheet = true
             }
 
-            // Present only in the demo build: a way to see the bar drain
-            // without waiting for real DeviceActivity events.
-            GhostButton(title: "Simulate 5 more minutes", symbol: "play.fill") {
-                withAnimation(Motion.smooth) { state.recordUsage(minutes: 5, for: app.id) }
+            GhostButton(title: "Stop tracking this app", symbol: "minus.circle") {
+                state.untrack(app.id)
+                dismiss()
             }
         }
         .padding(.top, Space.xs)
@@ -362,6 +361,6 @@ struct BudgetEditorSheet: View {
 #Preview("App detail") {
     NavigationStack {
         AppDetailView(appID: SampleData.apps[0].id)
-            .environment(AppState())
+            .environment(AppState.preview)
     }
 }

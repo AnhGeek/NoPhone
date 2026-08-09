@@ -13,6 +13,18 @@ enum Space {
 
     /// Standard screen gutter.
     static let gutter: CGFloat = 20
+
+    /// Bottom inset for any scrolling screen inside the tab shell.
+    ///
+    /// The tab bar floats *over* content rather than reserving space, so every
+    /// scroll view has to clear it by hand — including screens pushed onto the
+    /// navigation stack, where it is easy to forget because the bar is not part
+    /// of that screen's own layout. Without this the last control on a screen
+    /// sits permanently under the bar and cannot be tapped.
+    ///
+    /// Sheets and full-screen covers are *outside* the shell and must not use
+    /// it; `Space.xxl` is the right inset there.
+    static let tabBarClearance: CGFloat = 120
 }
 
 /// Corner radii. Cartoon UI lives on *very* round corners — the squircles are

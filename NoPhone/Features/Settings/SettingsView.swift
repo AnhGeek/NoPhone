@@ -8,8 +8,23 @@ import SwiftUI
 /// rather than just an assertion.
 struct SettingsView: View {
     @Environment(AppState.self) private var state
+    @Environment(ScreenTimeService.self) private var screenTime
+    #if targetEnvironment(simulator)
+    @Environment(SimulatorUsageDriver.self) private var driver
+    #endif
     @State private var showPaywall = false
     @State private var showRolloverConfirm = false
+    @State private var showPicker = false
+    @State private var showDiagnostics = false
+
+    private var screenTimeDetail: String {
+        switch screenTime.authorization {
+        case .approved:            "Granted. Usage is measured by iOS."
+        case .denied:              "Denied — budgets can't drain without it."
+        case .unavailable(let why): why
+        case .unknown:             "Not requested yet."
+        }
+    }
 
     var body: some View {
         ScrollView {
@@ -21,11 +36,13 @@ struct SettingsView: View {
                 about
             }
             .padding(.horizontal, Space.gutter)
-            .padding(.bottom, 120)
+            .padding(.bottom, Space.tabBarClearance)
         }
         .scrollIndicators(.hidden)
         .playgroundBackground(tints: [.bubblegum, .grape, .mint])
         .sheet(isPresented: $showPaywall) { PremiumView() }
+        .screenTimeSetup(isPresented: $showPicker)
+        .sheet(isPresented: $showDiagnostics) { DiagnosticsView() }
         .alert("Start a fresh day?", isPresented: $showRolloverConfirm) {
             Button("Roll over", role: .destructive) {
                 withAnimation(Motion.smooth) { state.rolloverDay() }
@@ -169,12 +186,32 @@ struct SettingsView: View {
                            detail: "Refill every bar now, the way midnight would.") {
                     showRolloverConfirm = true
                 }
+                SettingRow(symbol: "apps.iphone", tint: .grape,
+                           title: "Tracked apps",
+                           detail: "\(state.apps.count) on a budget. Add more or change one.") {
+                    showPicker = true
+                }
+                #if targetEnvironment(simulator)
+                // Development only — the Simulator has no Screen Time stack,
+                // so this drives the real pipeline by hand.
+                SettingRow(symbol: driver.isRunning ? "pause.fill" : "play.fill",
+                           tint: .tangerine,
+                           title: driver.isRunning ? "Stop simulated usage" : "Simulate usage",
+                           detail: "Burns \(Int(UsageBridge.tickMinutes))m every \(Int(SimulatorUsageDriver.secondsPerTick))s through the real usage path.") {
+                    if driver.isRunning { driver.stop() } else { driver.start(driving: state) }
+                }
+                #endif
                 SettingRow(symbol: "bell.badge.fill", tint: .bubblegum,
                            title: "Nudges",
                            detail: "A heads-up at 75%, 90% and empty.") {}
                 SettingRow(symbol: "hand.raised.fill", tint: .sky,
                            title: "Screen Time permission",
-                           detail: "Grant access so real usage replaces the demo numbers.") {}
+                           detail: screenTimeDetail) {}
+                SettingRow(symbol: "stethoscope", tint: .mint,
+                           title: "Diagnostics",
+                           detail: "What the app and the monitor recorded. Share it when reporting a problem.") {
+                    showDiagnostics = true
+                }
             }
             .padding(Space.sm)
             .cardSurface()
@@ -239,5 +276,10 @@ struct SettingRow: View {
 }
 
 #Preview("Settings") {
-    SettingsView().environment(AppState())
+    SettingsView()
+        .environment(AppState.preview)
+        .environment(ScreenTimeService())
+        #if targetEnvironment(simulator)
+        .environment(SimulatorUsageDriver())
+        #endif
 }
